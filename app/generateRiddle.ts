@@ -293,20 +293,19 @@ export async function generateRiddle(prompt: string, artStyle: ArtStyle, referen
         previousRoomData = roomData;
     }
 
-    // Video generation disabled
-    // for (let i = 0; i < roomIds.length - 1; i++) {
-    //     const transitionPrompt = `Create a ${artStyle} cinematic video transitioning from room ${i + 1} to room ${
-    //         i + 2
-    //     } for the story goal "${storyOutline.goal}". Highlight continuity and mood evolution.`;
+    for (let i = 0; i < roomIds.length - 1; i++) {
+        const transitionPrompt = `Create a ${artStyle} cinematic video transitioning from room ${i + 1} to room ${
+            i + 2
+        } for the story goal "${storyOutline.goal}". Highlight continuity and mood evolution.`;
 
-    //     const transitionVideoUrl = await generateVideoTransition(
-    //         transitionPrompt,
-    //         generatedRooms[i],
-    //         generatedRooms[i + 1]
-    //     );
+        const transitionVideoUrl = await generateVideoTransition(
+            transitionPrompt,
+            generatedRooms[i],
+            generatedRooms[i + 1]
+        );
 
-    //     if (transitionVideoUrl) {
-    //         await addTransitionVideoMutation({ roomId: roomIds[i], transitionVideoUrl });
-    //     }
-    // }
+        if (transitionVideoUrl) {
+            await addTransitionVideoMutation({ roomId: roomIds[i], transitionVideoUrl });
+        }
+    }
 }
