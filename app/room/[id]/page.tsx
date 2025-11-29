@@ -6,7 +6,7 @@ import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { RoomEngine } from '../components/RoomEngine';
 import { TransitionVideo } from '../components/TransitionVideo';
-import type { Room } from '../engine';
+import type { Level } from '../engine';
 import type { Id } from '@/convex/_generated/dataModel';
 
 export default function RoomPage() {
@@ -57,7 +57,9 @@ export default function RoomPage() {
         );
     }
 
-    const room = roomData.roomData as Room;
+    const level = roomData.roomData as Level;
+    const room = level.room;
+    const initialState = level.initialState ?? {};
 
     return (
         <main className="flex min-h-screen flex-col items-center justify-center bg-zinc-900 p-4">
@@ -70,11 +72,7 @@ export default function RoomPage() {
                 </div>
             </div>
             <div className="w-full max-w-5xl">
-                <RoomEngine
-                    room={room}
-                    initialState={{}}
-                    onFinish={handleFinish}
-                />
+                <RoomEngine room={room} initialState={initialState} onFinish={handleFinish} />
             </div>
 
             {/* Transition Video Modal */}
