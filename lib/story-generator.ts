@@ -147,6 +147,7 @@ const LEVEL_RESPONSE_SCHEMA = {
   },
 } as const;
 export interface StoryGenerationResult {
+  level: Level;
   room: Room;
   imagePrompts: {
     background: string;
@@ -157,16 +158,23 @@ export interface StoryGenerationResult {
 }
 
 /**
- * Generate a story-based escape room with interactive objects
- * @param storyOutline - The story context/outline for the escape room scenario
- * @returns A complete room with interactive objects and image generation prompts
+ * Generate a story-based escape room from a higher-level outline.
  */
 export async function generateStoryRoom(
   storyOutline: string = DEFAULT_STORY_OUTLINE
 ): Promise<StoryGenerationResult> {
-  // Combine system prompt and user prompt
-  const fullPrompt = `${SYSTEM_PROMPT_LOGIC}\n\n${getUserPromptLogic(storyOutline)}`;
+  return generateLevelFromPrompt(getUserPromptLogic(storyOutline));
+}
 
+/**
+ * Generate a level using a custom prompt segment appended to the system instructions.
+ */
+export async function generateLevelFromPrompt(customPrompt: string): Promise<StoryGenerationResult> {
+  const fullPrompt = `${SYSTEM_PROMPT_LOGIC}\n\n${customPrompt}`;
+  return generateFromFullPrompt(fullPrompt);
+}
+
+async function generateFromFullPrompt(fullPrompt: string): Promise<StoryGenerationResult> {
   const response = await sendPrompt(fullPrompt, "gemini-2.5-flash", {
     responseMimeType: "application/json",
     responseJsonSchema: LEVEL_RESPONSE_SCHEMA,
@@ -289,7 +297,16 @@ export async function generateStoryRoom(
     });
   });
 
+  const level: Level = {
+    ...levelData,
+    room: {
+      ...room,
+    },
+    initialState: initialGameState,
+  };
+
   return {
+    level,
     room,
     imagePrompts: {
       background: backgroundImagePrompt,
@@ -353,6 +370,7 @@ export async function generateStoryRoomWithImages(
       "16:9"
     );
     result.room.backgroundImage = backgroundImage;
+    result.level.room.backgroundImage = backgroundImage;
 
     // Generate object images
     let objectIndex = 0;
@@ -364,6 +382,10 @@ export async function generateStoryRoomWithImages(
           "1:1"
         );
         obj.image = objectImage;
+        const levelObject = result.level.room.objects.find((o) => o.id === obj.id);
+        if (levelObject) {
+          levelObject.image = objectImage;
+        }
         objectIndex++;
       }
     }

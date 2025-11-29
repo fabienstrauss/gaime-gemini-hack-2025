@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sendPrompt } from "@/lib/gemini";
-import { SYSTEM_PROMPT_LOGIC } from "@/lib/prompt-logic";
-import type { Room } from "@/app/room/engine/schema";
+import type { Level } from "@/app/room/engine/schema";
+import { generateLevelFromPrompt } from "@/lib/story-generator";
+import { buildRoomPrompt } from "@/lib/room-prompts";
 
 /**
  * Generate a single room with context from previous rooms
@@ -29,16 +29,6 @@ export async function POST(request: NextRequest) {
     console.log(`Art Style: ${artStyle}`);
     console.log(`Previous rooms: ${previousRoomStories.length}`);
 
-    // Build context from previous rooms
-    let contextPrompt = "";
-    if (previousRoomStories.length > 0) {
-      contextPrompt = `\n\n**Previous Room Context:**\n`;
-      previousRoomStories.forEach((story: string, index: number) => {
-        contextPrompt += `\nRoom ${index + 1}: ${story}\n`;
-      });
-      contextPrompt += `\n**Now continue the story for Room ${roomNumber}.**\n`;
-    }
-
     // Create room-specific prompt
     const roomPrompt = buildRoomPrompt(
       storyOutline,
@@ -48,47 +38,15 @@ export async function POST(request: NextRequest) {
       artStyle
     );
 
-    // Call Gemini to generate the room
-    const fullPrompt = `${SYSTEM_PROMPT_LOGIC}\n\n${roomPrompt}`;
-    const response = await sendPrompt(fullPrompt, "gemini-2.5-flash");
+    const generationResult = await generateLevelFromPrompt(roomPrompt);
+    const { level, room, visualDescription, imagePrompts } = generationResult;
 
-    // Parse the response
-    let parsedData: any;
-    try {
-      let cleanedResponse = response.trim();
-      if (cleanedResponse.startsWith("```json")) {
-        cleanedResponse = cleanedResponse.replace(/^```json\n/, "").replace(/\n```$/, "");
-      } else if (cleanedResponse.startsWith("```")) {
-        cleanedResponse = cleanedResponse.replace(/^```\n/, "").replace(/\n```$/, "");
-      }
-      parsedData = JSON.parse(cleanedResponse);
-    } catch (error) {
-      console.error("Failed to parse Gemini response:", response);
-      throw new Error("Failed to parse room generation response from Gemini");
-    }
-
-    // Extract room data
-    const roomStory = parsedData.roomStory || parsedData.visualDescription || "";
-    const visualDescription = parsedData.visualDescription || "";
-
-    // Build room object (matching your schema)
-    const room: Room = {
-      backgroundImage: parsedData.backgroundImage || "",
-      objects: parsedData.objects || [],
-    };
-
-    // Generate image prompts
     const backgroundImagePrompt = `Create a detailed, atmospheric ${artStyle} style image for an escape room game: ${visualDescription}. Style: ${artStyle}, cinematic, immersive, high detail, perfect for a point-and-click adventure game.`;
 
-    const objectImagePrompts: Record<string, string> = {};
-    room.objects.forEach((obj: any) => {
-      const objectName = obj.name || obj.id;
-      objectImagePrompts[obj.id] = `A detailed, high-quality ${artStyle} style image of ${objectName} in the context of: ${visualDescription}. Suitable for an escape room game interface, clear and recognizable, ${artStyle} art style.`;
-
-      // Remove 'name' field if it exists (not in schema)
-      if (obj.name) {
-        delete obj.name;
-      }
+    const styledObjectPrompts: Record<string, string> = {};
+    room.objects.forEach((obj) => {
+      const basePrompt = imagePrompts.objects[obj.id] ?? `A detailed object named ${obj.id}`;
+      styledObjectPrompts[obj.id] = `${basePrompt} Style: ${artStyle}, highly readable, designed for a point-and-click escape game.`;
     });
 
     // For now, return placeholder URLs for images
@@ -96,24 +54,34 @@ export async function POST(request: NextRequest) {
     const backgroundImageUrl = generatePlaceholderImage(artStyle, "background", roomNumber);
     const objectImageUrls: Record<string, string> = {};
 
-    room.objects.forEach((obj: any) => {
+    const decoratedObjects = room.objects.map((obj) => {
       objectImageUrls[obj.id] = generatePlaceholderImage(artStyle, obj.id, roomNumber);
-      obj.image = objectImageUrls[obj.id];
+      return {
+        ...obj,
+        image: objectImageUrls[obj.id],
+      };
     });
 
-    room.backgroundImage = backgroundImageUrl;
+    const levelWithImages: Level = {
+      ...level,
+      room: {
+        ...room,
+        backgroundImage: backgroundImageUrl,
+        objects: decoratedObjects,
+      },
+    };
 
-    console.log(`✅ Room ${roomNumber} generated with ${room.objects.length} objects`);
+    console.log(`✅ Room ${roomNumber} generated with ${decoratedObjects.length} objects`);
 
     return NextResponse.json({
       success: true,
-      roomStory,
-      roomData: room,
+      roomStory: visualDescription,
+      roomData: levelWithImages,
       backgroundImageUrl,
       objectImageUrls,
       imagePrompts: {
         background: backgroundImagePrompt,
-        objects: objectImagePrompts,
+        objects: styledObjectPrompts,
       },
     });
   } catch (error: any) {
@@ -126,51 +94,6 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
-
-/**
- * Build the prompt for generating a specific room
- */
-function buildRoomPrompt(
-  storyOutline: string,
-  roomNumber: number,
-  totalRooms: number,
-  previousRoomStories: string[],
-  artStyle: string
-): string {
-  let prompt = `**Overall Story:**\n"${storyOutline}"\n\n`;
-
-  if (previousRoomStories.length > 0) {
-    prompt += `**Previous Rooms (for context):**\n`;
-    previousRoomStories.forEach((story, index) => {
-      prompt += `Room ${index + 1}: ${story}\n\n`;
-    });
-  }
-
-  prompt += `**Task:**\n`;
-  prompt += `Generate Room ${roomNumber} of ${totalRooms}.\n\n`;
-
-  if (roomNumber === 1) {
-    prompt += `This is the FIRST room. The player starts here. Introduce the story and setting. Create a puzzle that leads to discovering the key or code to exit to the next room.\n\n`;
-  } else if (roomNumber === totalRooms) {
-    prompt += `This is the FINAL room (room ${roomNumber}). Build on the previous rooms' story. Create the final challenge. The player should feel a sense of accomplishment when they solve it. Use 'action: "finish"' for the final escape option.\n\n`;
-  } else {
-    prompt += `This is room ${roomNumber} (middle room). Continue the story from the previous room(s). Create puzzles that connect to what happened before and hint at what's coming next. The exit should lead to the next room.\n\n`;
-  }
-
-  prompt += `**Art Style:** ${artStyle}\n`;
-  prompt += `Make sure the visual description matches the ${artStyle} art style.\n\n`;
-
-  prompt += `**Response Format:**\n`;
-  prompt += `Return JSON with these fields:\n`;
-  prompt += `- roomStory: A short narrative (2-3 sentences) describing what happens in this room\n`;
-  prompt += `- visualDescription: Detailed scene description for image generation\n`;
-  prompt += `- backgroundImage: "" (leave empty)\n`;
-  prompt += `- objects: Array of interactive objects with puzzle logic\n\n`;
-
-  prompt += `Make sure objects have proper puzzle dependencies and the story flows naturally from the previous room(s).`;
-
-  return prompt;
 }
 
 /**

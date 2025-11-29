@@ -3,11 +3,13 @@
 import { Buffer } from "buffer";
 import { ConvexHttpClient } from "convex/browser";
 import type { ArtStyle } from "@/app/_lib/types";
-import { Level, Room } from "@/app/room/engine";
+import { Level } from "@/app/room/engine";
 import type { Id } from "@/convex/_generated/dataModel";
 import { api } from "@/convex/_generated/api";
 import { generateVideoWithVeo } from "@/lib/veo";
 import { generateImageWithImagen } from "@/lib/imagen";
+import { generateLevelFromPrompt } from "@/lib/story-generator";
+import { buildRoomPrompt } from "@/lib/room-prompts";
 
 const CONVEX_URL = process.env.NEXT_PUBLIC_CONVEX_URL;
 
@@ -137,64 +139,6 @@ export async function generateStoryOutline(
     };
 }
 
-export async function generateRoom(
-    roomNumber: number,
-    storyOutline: { goal: string; theme: string; description: string },
-    artStyle: ArtStyle,
-    previousRoomData?: Level | null,
-    referenceImageBase64?: string
-): Promise<Level> {
-    console.log(`🏠 Generating room ${roomNumber}...`);
-
-    // Generate background image for the room
-    const imagePrompt = `Create a ${artStyle} style background image for room ${roomNumber} of an interactive story. Theme: ${storyOutline.theme}. Scene description: ${storyOutline.description}. The image should be a detailed, atmospheric background suitable for a game or interactive narrative. ${
-        previousRoomData
-            ? `This room continues from the previous scene, showing progression in the story.`
-            : `This is the opening scene of the adventure.`
-    }`;
-
-    const base64Image = await generateImageWithImagen({
-        prompt: imagePrompt,
-        aspectRatio: "16:9",
-        imageSize: "2K",
-        referenceImageBase64: referenceImageBase64,
-    });
-
-    const filename = `room_${roomNumber}_${Date.now()}`;
-    const backgroundImageUrl = await uploadImageToConvex(base64Image, filename);
-
-    console.log(`✅ Room ${roomNumber} background image generated: ${backgroundImageUrl}`);
-
-    const roomDefinition: Room = {
-        backgroundImage: backgroundImageUrl,
-        objects: [
-            {
-                id: `object-${roomNumber}`,
-                area: { x: 40, y: 20, width: 20, height: 60 },
-                text: [
-                    {
-                        content: previousRoomData
-                            ? `Room ${roomNumber}: Continuing from the previous room in this ${storyOutline.theme} adventure.`
-                            : `Room ${roomNumber}: This is a placeholder room for the ${storyOutline.theme} theme.`,
-                    },
-                ],
-                options: [
-                    {
-                        label: "Continue",
-                        action: "finish" as const,
-                    },
-                ],
-            },
-        ],
-    };
-
-    return {
-        id: `level-${roomNumber}`,
-        room: roomDefinition,
-        initialState: {},
-    };
-}
-
 export async function generateVideoTransition(
     transitionPrompt: string,
     firstRoom: Level,
@@ -277,20 +221,69 @@ export async function generateRiddle(prompt: string, artStyle: ArtStyle, referen
     await createStoryBasicMutation({ storyId, goal: storyOutline.goal, theme: storyOutline.theme, description: storyOutline.description });
     let previousRoomData: Level | null = null;
     const generatedRooms: Level[] = [];
+    const previousRoomStories: string[] = [];
+    const storyContext = `${storyOutline.goal}. ${storyOutline.description}`;
 
     for (let i = 0; i < roomIds.length; i++) {
         const roomNumber = i + 1;
-        // Only pass reference image for the first room
-        const roomData = await generateRoom(
+        console.log(`🏗️ Generating narrative-driven room ${roomNumber}/${roomIds.length}...`);
+
+        const roomPrompt = buildRoomPrompt(
+            storyContext,
             roomNumber,
-            storyOutline,
-            artStyle,
-            previousRoomData,
-            roomNumber === 1 ? referenceImageBase64 : undefined
+            roomIds.length,
+            previousRoomStories,
+            artStyle
         );
-        await updateRoomMutation({ roomId: roomIds[i], roomData });
-        generatedRooms.push(roomData);
-        previousRoomData = roomData;
+
+        const generationResult = await generateLevelFromPrompt(roomPrompt);
+        let level = generationResult.level;
+
+        // Generate background image based on AI prompt
+        const backgroundBase64 = await generateImageWithImagen({
+            prompt: generationResult.imagePrompts.background,
+            aspectRatio: "16:9",
+            imageSize: "2K",
+            referenceImageBase64: roomNumber === 1 ? referenceImageBase64 : undefined,
+        });
+        const backgroundFilename = `room_${roomNumber}_${Date.now()}`;
+        const backgroundImageUrl = await uploadImageToConvex(backgroundBase64, backgroundFilename);
+
+        // Generate object images when prompts exist
+        const objectsWithImages = [];
+        for (const obj of level.room.objects) {
+            const objectPrompt = generationResult.imagePrompts.objects[obj.id];
+            let objectImageUrl = obj.image;
+
+            if (objectPrompt) {
+                const objectBase64 = await generateImageWithImagen({
+                    prompt: objectPrompt,
+                    aspectRatio: "1:1",
+                    imageSize: "1K",
+                });
+                const objectFilename = `room_${roomNumber}_${obj.id}_${Date.now()}`;
+                objectImageUrl = await uploadImageToConvex(objectBase64, objectFilename);
+            }
+
+            objectsWithImages.push({
+                ...obj,
+                ...(objectImageUrl ? { image: objectImageUrl } : {}),
+            });
+        }
+
+        level = {
+            ...level,
+            room: {
+                ...level.room,
+                backgroundImage: backgroundImageUrl,
+                objects: objectsWithImages,
+            },
+        };
+
+        await updateRoomMutation({ roomId: roomIds[i], roomData: level });
+        generatedRooms.push(level);
+        previousRoomData = level;
+        previousRoomStories.push(generationResult.visualDescription);
     }
 
     for (let i = 0; i < roomIds.length - 1; i++) {

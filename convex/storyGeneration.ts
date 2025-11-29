@@ -53,6 +53,13 @@ export const generateCompleteStory = action({
           roomIds // Previous room data for continuity
         );
 
+        if (
+          !roomResult?.roomData?.room ||
+          roomResult.roomData.room.objects?.length < 3
+        ) {
+          throw new Error(`Generated room ${roomNumber} is incomplete.`);
+        }
+
         // Save room to Convex
         const roomId = await ctx.runMutation(api.riddles.createRoom, {
           storyId: storyId,
