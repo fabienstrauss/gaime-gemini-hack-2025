@@ -6,23 +6,16 @@ import type { ArtStyle } from "@/app/_lib/types";
 import { Level, Room } from "@/app/room/engine";
 import type { Id } from "@/convex/_generated/dataModel";
 import { api } from "@/convex/_generated/api";
-import { GoogleGenAI } from "@google/genai";
+import { generateVideoWithVeo } from "@/lib/veo";
+import { generateImageWithImagen } from "@/lib/imagen";
 
 const CONVEX_URL = process.env.NEXT_PUBLIC_CONVEX_URL;
-const GEMINI_API_KEY = process.env.GOOGLE_GENAI_API_KEY;
 
 if (!CONVEX_URL) {
     throw new Error("NEXT_PUBLIC_CONVEX_URL is not set");
 }
 
-if (!GEMINI_API_KEY) {
-    throw new Error("GOOGLE_GENAI_API_KEY is not set");
-}
-
 const convex = new ConvexHttpClient(CONVEX_URL);
-const googleAiClient = new GoogleGenAI({
-    apiKey: GEMINI_API_KEY,
-});
 
 const createStoryEmptyMutation = (args: { prompt: string; artStyle: ArtStyle }) =>
     convex.mutation(api.riddles.createStory_empty, args);
@@ -92,6 +85,41 @@ export async function saveAssetFromTemporaryFile({
     return { name: resolvedName, storageId };
 }
 
+/**
+ * Upload a base64 image to Convex storage and return the URL
+ */
+export async function uploadImageToConvex(base64Data: string, filename: string): Promise<string> {
+    const buffer = Buffer.from(base64Data, "base64");
+    const uploadUrl = await convex.mutation(api.assets.generateUploadUrl);
+
+    const uploadResponse = await fetch(uploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": "image/png" },
+        body: buffer,
+    });
+
+    if (!uploadResponse.ok) {
+        throw new Error("Failed to upload image to Convex storage");
+    }
+
+    const { storageId } = (await uploadResponse.json()) as { storageId: string };
+
+    await saveAssetMutation({
+        name: filename,
+        storageId: storageId as Id<"_storage">,
+        type: "image",
+        mimeType: "image/png",
+    });
+
+    const imageUrl = await convex.query(api.assets.getAssetUrl, { name: filename });
+
+    if (!imageUrl) {
+        throw new Error("Failed to retrieve uploaded image URL");
+    }
+
+    return imageUrl;
+}
+
 export async function generateStoryOutline(
     prompt: string,
     artStyle: ArtStyle
@@ -115,10 +143,28 @@ export async function generateRoom(
     artStyle: ArtStyle,
     previousRoomData?: Level | null
 ): Promise<Level> {
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    console.log(`🏠 Generating room ${roomNumber}...`);
+
+    // Generate background image for the room
+    const imagePrompt = `Create a ${artStyle} style background image for room ${roomNumber} of an interactive story. Theme: ${storyOutline.theme}. Scene description: ${storyOutline.description}. The image should be a detailed, atmospheric background suitable for a game or interactive narrative. ${
+        previousRoomData
+            ? `This room continues from the previous scene, showing progression in the story.`
+            : `This is the opening scene of the adventure.`
+    }`;
+
+    const base64Image = await generateImageWithImagen({
+        prompt: imagePrompt,
+        aspectRatio: "16:9",
+        imageSize: "2K",
+    });
+
+    const filename = `room_${roomNumber}_${Date.now()}`;
+    const backgroundImageUrl = await uploadImageToConvex(base64Image, filename);
+
+    console.log(`✅ Room ${roomNumber} background image generated: ${backgroundImageUrl}`);
 
     const roomDefinition: Room = {
-        backgroundImage: "https://images.unsplash.com/photo-1519074069444-1ba4fff66d16?q=80&w=2544&auto=format&fit=crop",
+        backgroundImage: backgroundImageUrl,
         objects: [
             {
                 id: `object-${roomNumber}`,
@@ -160,66 +206,15 @@ export async function generateVideoTransition(
             throw new Error("Both rooms must have background images");
         }
 
-        const [firstFrameResponse, lastFrameResponse] = await Promise.all([
-            fetch(firstFrameUrl),
-            fetch(lastFrameUrl),
-        ]);
-
-        if (!firstFrameResponse.ok || !lastFrameResponse.ok) {
-            throw new Error("Failed to fetch one or both images");
-        }
-
-        const firstFrameBuffer = await firstFrameResponse.arrayBuffer();
-        const lastFrameBuffer = await lastFrameResponse.arrayBuffer();
-        const firstFrameBase64 = Buffer.from(firstFrameBuffer).toString("base64");
-        const lastFrameBase64 = Buffer.from(lastFrameBuffer).toString("base64");
-
-        const firstFrameMimeType = (firstFrameResponse.headers.get("content-type") || "image/jpeg") as
-            | "image/png"
-            | "image/jpeg";
-        const lastFrameMimeType = (lastFrameResponse.headers.get("content-type") || "image/jpeg") as
-            | "image/png"
-            | "image/jpeg";
-
-        let operation = await googleAiClient.models.generateVideos({
-            model: "veo-3.1-fast-generate-preview",
+        // Generate video using Veo
+        const videoBuffer = await generateVideoWithVeo({
             prompt: transitionPrompt,
-            image: {
-                imageBytes: firstFrameBase64,
-                mimeType: firstFrameMimeType,
-            },
-            config: {
-                lastFrame: {
-                    imageBytes: lastFrameBase64,
-                    mimeType: lastFrameMimeType,
-                },
-                aspectRatio: "16:9",
-            },
+            firstFrameUrl,
+            lastFrameUrl,
+            aspectRatio: "16:9",
         });
 
-        while (!operation.done) {
-            await new Promise((resolve) => setTimeout(resolve, 10000));
-            operation = await googleAiClient.operations.getVideosOperation({
-                operation,
-            });
-        }
-
-        const generatedVideoRef = operation.response?.generatedVideos?.[0]?.video;
-
-        if (!generatedVideoRef) {
-            throw new Error("No video generated in response");
-        }
-
-        const tempPath = `/tmp/generated_video_${Date.now()}.mp4`;
-        await googleAiClient.files.download({
-            file: generatedVideoRef,
-            downloadPath: tempPath,
-        });
-
-        const fs = await import("fs/promises");
-        const videoBuffer = await fs.readFile(tempPath);
-        await fs.unlink(tempPath);
-
+        // Upload to Convex
         const uploadUrl = await convex.mutation(api.assets.generateUploadUrl);
 
         const uploadResult = await fetch(uploadUrl, {

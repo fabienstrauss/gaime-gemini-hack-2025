@@ -10,6 +10,7 @@
 
 import type * as assets from "../assets.js";
 import type * as riddles from "../riddles.js";
+import type * as storyGeneration from "../storyGeneration.js";
 
 import type {
   ApiFromModules,
@@ -20,6 +21,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   assets: typeof assets;
   riddles: typeof riddles;
+  storyGeneration: typeof storyGeneration;
 }>;
 
 /**

@@ -6,12 +6,11 @@ import { GoogleGenAI } from "@google/genai";
 let genAI: GoogleGenAI | null = null;
 
 const DEFAULT_GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-3-pro-preview";
-const GEMINI_API_VERSION = process.env.GEMINI_API_VERSION ?? "v1alpha";
 
 /**
  * Get or initialize the Google Gen AI client
  */
-function getClient(): GoogleGenAI {
+export function getClient(): GoogleGenAI {
   if (!genAI) {
     const apiKey = process.env.GOOGLE_API_KEY ?? process.env.GOOGLE_GENAI_API_KEY;
     if (!apiKey) {
@@ -19,7 +18,6 @@ function getClient(): GoogleGenAI {
     }
     genAI = new GoogleGenAI({
       apiKey,
-      apiVersion: GEMINI_API_VERSION,
     });
   }
   return genAI;
