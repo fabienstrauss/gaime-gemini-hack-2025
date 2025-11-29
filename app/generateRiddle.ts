@@ -66,7 +66,7 @@ export async function saveAssetFromTemporaryFile({
     const uploadResponse = await fetch(uploadUrl, {
         method: "POST",
         headers: { "Content-Type": resolvedMimeType },
-        body: Buffer.from(arrayBuffer),
+        body: arrayBuffer,
     });
 
     if (!uploadResponse.ok) {
@@ -95,7 +95,7 @@ export async function uploadImageToConvex(base64Data: string, filename: string):
     const uploadResponse = await fetch(uploadUrl, {
         method: "POST",
         headers: { "Content-Type": "image/png" },
-        body: buffer,
+        body: new Uint8Array(buffer),
     });
 
     if (!uploadResponse.ok) {
@@ -227,7 +227,7 @@ export async function generateVideoTransition(
         const uploadResult = await fetch(uploadUrl, {
             method: "POST",
             headers: { "Content-Type": "video/mp4" },
-            body: videoBuffer,
+            body: new Uint8Array(videoBuffer),
         });
 
         if (!uploadResult.ok) {
