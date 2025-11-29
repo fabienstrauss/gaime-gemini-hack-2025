@@ -24,19 +24,19 @@ const googleAiClient = new GoogleGenAI({
     apiKey: GEMINI_API_KEY,
 });
 
-export const createStoryEmptyMutation = (args: { prompt: string; artStyle: ArtStyle }) =>
+const createStoryEmptyMutation = (args: { prompt: string; artStyle: ArtStyle }) =>
     convex.mutation(api.riddles.createStory_empty, args);
 
-export const createStoryBasicMutation = (args: { storyId: Id<"stories">; goal: string; theme?: string; description?: string }) =>
+const createStoryBasicMutation = (args: { storyId: Id<"stories">; goal: string; theme?: string; description?: string }) =>
     convex.mutation(api.riddles.createStory_basic, args);
 
-export const updateRoomMutation = (args: { roomId: Id<"rooms">; roomData: Level }) =>
+const updateRoomMutation = (args: { roomId: Id<"rooms">; roomData: Level }) =>
     convex.mutation(api.riddles.updateRoom, args);
 
-export const addTransitionVideoMutation = (args: { roomId: Id<"rooms">; transitionVideoUrl: string }) =>
+const addTransitionVideoMutation = (args: { roomId: Id<"rooms">; transitionVideoUrl: string }) =>
     convex.mutation(api.riddles.addTransitionVideo, args);
 
-export const saveAssetMutation = (args: { name: string; storageId: Id<"_storage">; type: string; mimeType: string }) =>
+const saveAssetMutation = (args: { name: string; storageId: Id<"_storage">; type: string; mimeType: string }) =>
     convex.mutation(api.assets.saveAsset, args);
 
 export async function saveAssetFromTemporaryFile({
