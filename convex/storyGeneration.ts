@@ -15,7 +15,11 @@ export const generateCompleteStory = action({
     storyOutline: v.string(),
     artStyle: v.union(v.literal("comic"), v.literal("drawing"), v.literal("photorealistic")),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<{
+    storyId: string;
+    roomIds: string[];
+    firstRoomId: string;
+  }> => {
     const { storyOutline, artStyle } = args;
 
     console.log("🎮 Starting complete story generation...");
@@ -28,8 +32,6 @@ export const generateCompleteStory = action({
       artStyle: artStyle,
       goal: `Complete all 3 rooms to escape`,
       totalRooms: 3,
-      room_stories: [],
-      status: "generating",
     });
 
     console.log(`✅ Story created with ID: ${storyId}`);
@@ -55,9 +57,7 @@ export const generateCompleteStory = action({
         const roomId = await ctx.runMutation(api.riddles.createRoom, {
           storyId: storyId,
           roomNumber: roomNumber,
-          roomStory: roomResult.roomStory,
           roomData: roomResult.roomData,
-          ready: true,
         });
 
         console.log(`✅ Room ${roomNumber} created with ID: ${roomId}`);
@@ -66,61 +66,16 @@ export const generateCompleteStory = action({
         roomStories.push(roomResult.roomStory);
         roomIds.push(roomId);
 
-        // Update room with images
-        if (roomResult.backgroundImageUrl) {
-          // Upload background image to Convex storage
-          const bgAssetId = await uploadImageToConvexStorage(
-            ctx,
-            roomResult.backgroundImageUrl,
-            `story-${storyId}-room-${roomNumber}-background`,
-            artStyle
-          );
-
-          await ctx.runMutation(api.riddles.updateRoomImages, {
-            roomId: roomId,
-            backgroundImageAssetId: bgAssetId,
-          });
-        }
-
-        // Upload object images
-        if (roomResult.objectImageUrls) {
-          const objectAssetIds: Record<string, string> = {};
-
-          for (const [objectId, imageUrl] of Object.entries(roomResult.objectImageUrls)) {
-            const assetId = await uploadImageToConvexStorage(
-              ctx,
-              imageUrl,
-              `story-${storyId}-room-${roomNumber}-object-${objectId}`,
-              artStyle
-            );
-            objectAssetIds[objectId] = assetId;
-          }
-
-          await ctx.runMutation(api.riddles.updateRoomImages, {
-            roomId: roomId,
-            objectImageAssetIds: objectAssetIds,
-          });
-        }
 
       } catch (error: any) {
         console.error(`❌ Failed to generate room ${roomNumber}:`, error);
-
-        // Mark story as failed
-        await ctx.runMutation(api.riddles.updateStoryStatus, {
-          storyId: storyId,
-          status: "failed",
-        });
-
+        // TODO: Add status tracking when schema supports it
         throw error;
       }
     }
 
-    // Step 3: Update story with room_stories and mark as completed
-    await ctx.runMutation(api.riddles.updateStoryWithRooms, {
-      storyId: storyId,
-      room_stories: roomStories,
-      status: "completed",
-    });
+    // Step 3: Story generation completed
+    // TODO: Update story with room_stories when schema supports it
 
     console.log("\n✅ Complete story generation finished!");
     console.log(`Story ID: ${storyId}`);
