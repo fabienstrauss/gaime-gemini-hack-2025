@@ -8,7 +8,7 @@ import type { ArtStyle, Story } from "./_lib/types";
 import { Sparkles, Pencil, Image as ImageIcon, Clock } from "lucide-react";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { LucideIcon } from "lucide-react";
-import { generateRiddleAction } from "./actions";
+import {generateRiddle} from "@/app/generateRiddle";
 
 const artStyleIcons = {
     comic: Sparkles,
@@ -35,7 +35,7 @@ export default function HomePage() {
         }
 
         try {
-            await generateRiddleAction(prompt.trim(), artStyle);
+            await generateRiddle(prompt.trim(), artStyle);
         } catch (error) {
             console.error("Failed to generate riddle:", error);
             alert("Failed to generate riddle. Please try again.");
