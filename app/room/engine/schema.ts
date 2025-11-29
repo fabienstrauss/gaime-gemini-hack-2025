@@ -64,3 +64,5 @@ export const LevelSchema = z.object({
     initialState: GameStateSchema.describe("The starting state of the game flags (e.g., { doorOpen: false })."),
 }).describe("Complete definition of a game level, including the room layout and the initial state.");
 export type Level = z.infer<typeof LevelSchema>;
+
+

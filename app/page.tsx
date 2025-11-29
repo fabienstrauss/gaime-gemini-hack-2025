@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
-import { useMutation, useQuery } from "convex/react";
+import React, { useState, useEffect, useRef } from "react";
+import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useRouter } from "next/navigation";
-import type { ArtStyle } from "./_lib/types";
+import type { ArtStyle, Story } from "./_lib/types";
 import { Sparkles, Pencil, Image as ImageIcon, Clock } from "lucide-react";
 import type { Id } from "@/convex/_generated/dataModel";
+import type { LucideIcon } from "lucide-react";
 
 const artStyleIcons = {
     comic: Sparkles,
@@ -25,9 +26,23 @@ export default function HomePage() {
     const [prompt, setPrompt] = useState("");
     const [artStyle, setArtStyle] = useState<ArtStyle | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
-
-    const generateRiddle = useMutation(api.riddles.generateRiddle);
+    const [pendingStory, setPendingStory] = useState<{ prompt: string; artStyle: ArtStyle } | null>(null);
     const stories = useQuery(api.riddles.listStories) ?? [];
+
+    // Watch for the newly created story and navigate to it
+    useEffect(() => {
+        if (!pendingStory || !isGenerating) return;
+
+        // Find the story that matches our pending creation
+        const newStory = stories.find(
+            (s) => s.prompt === pendingStory.prompt && s.artStyle === pendingStory.artStyle
+        );
+
+        if (newStory) {
+            // Story found, now get the first room ID
+            setPendingStory(null);
+        }
+    }, [stories, pendingStory, isGenerating]);
 
     const handleGenerate = async () => {
         if (!prompt.trim() || !artStyle) {
@@ -36,15 +51,43 @@ export default function HomePage() {
         }
 
         setIsGenerating(true);
+        setPendingStory({ prompt: prompt.trim(), artStyle });
+
         try {
-            const result = await generateRiddle({ prompt: prompt.trim(), artStyle });
-            router.push(`/room/${result.firstRoomId}`);
+            const response = await fetch("/api/generate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ prompt: prompt.trim(), artStyle }),
+            });
+
+            if (!response.ok) {
+                throw new Error("Failed to trigger generation");
+            }
         } catch (error) {
             console.error("Failed to generate riddle:", error);
             alert("Failed to generate riddle. Please try again.");
             setIsGenerating(false);
+            setPendingStory(null);
         }
     };
+
+    // Watch for the first room ID of the pending story
+    const newStory = pendingStory
+        ? stories.find((s) => s.prompt === pendingStory.prompt && s.artStyle === pendingStory.artStyle)
+        : null;
+    const firstRoomId = useQuery(
+        api.riddles.getFirstRoomId,
+        newStory ? { storyId: newStory._id } : "skip"
+    );
+
+    // Navigate when the first room ID is available
+    useEffect(() => {
+        if (firstRoomId && isGenerating && newStory) {
+            setIsGenerating(false);
+            setPendingStory(null);
+            router.push(`/room/${firstRoomId}`);
+        }
+    }, [firstRoomId, isGenerating, newStory, router]);
 
     const formatDate = (timestamp: number) => {
         const date = new Date(timestamp);
@@ -164,7 +207,7 @@ export default function HomePage() {
     );
 }
 
-function StoryCard({ story, Icon, onStart }: { story: any; Icon: any; onStart: (firstRoomId: Id<"rooms">) => void }) {
+function StoryCard({ story, Icon, onStart }: { story: Story; Icon: LucideIcon; onStart: (firstRoomId: Id<"rooms">) => void }) {
     const firstRoomId = useQuery(api.riddles.getFirstRoomId, { storyId: story._id });
     const [isLoading, setIsLoading] = useState(false);
 
@@ -206,7 +249,7 @@ function StoryCard({ story, Icon, onStart }: { story: any; Icon: any; onStart: (
                 </div>
                 <div className="flex items-center gap-1 text-xs text-purple-300">
                     <Clock className="w-4 h-4" />
-                    {formatDate(story.createdAt)}
+                    {formatDate(story._creationTime)}
                 </div>
             </div>
             <p className="text-white font-medium mb-2 line-clamp-3">
