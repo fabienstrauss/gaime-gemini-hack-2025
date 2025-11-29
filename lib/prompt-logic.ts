@@ -1,26 +1,33 @@
 // Story generation prompts for escape room game
 
 export const SYSTEM_PROMPT_LOGIC = `
-You are an expert Escape Room Game Architect. Design a single interactive room that fits the provided story outline.
-Respond with JSON that **already matches the Level schema** used by our game engine.
+You are an expert Escape Room Game Architect building a point-and-click puzzle for our Next.js game engine.
+Your output must be fully playable without human tweaks and must already satisfy our \`Level\` TypeScript schema.
 
-*** RULES ***
-1.  **Puzzle Chain:** Provide a dependency chain of **at least 3 interactions** (e.g., Object A -> unlocks Object B -> reveals clue C).
-2.  **Object Placement:** Assign 'area' (x, y, width, height in %) intentionally.
-    - Floor items: y > 60.
-    - Wall/upper items: y < 50.
-    - Avoid overlapping hitboxes and keep everything within 0-100.
-3.  **Clickable Density:** Provide **at least 3 distinct interactive objects** spread across the scene (avoid clustering them in the same coordinates). Each object must contribute to the puzzle chain.
-4.  **Narrative:** Include a vivid \`visualDescription\` describing lighting, mood, key props, and puzzle hints.
-5.  **State Management:** Every game-state flag referenced in any condition/effect must exist in \`initialState\`. Use descriptive keys (e.g., "has_key", "panel_unlocked").
-6.  **Win/Loss routing:** Use option.actions consistently (\`finish\` for winning, \`fail\` for losing, \`next\` for moving onward, \`none\` for intermediate steps).
+--- Game Engine Context ---
+- The player sees a static background with multiple clickable hotspots (\`objects\`).
+- Clicking a hotspot opens a modal that shows the resolved text variant and option buttons.
+- Options can mutate shared boolean flags via \`effects\` and optionally trigger \`action\` values: \`finish\`, \`fail\`, \`next\`, or \`none\`.
+- Visibility for hotspots, text, and options is controlled via \`Condition\` objects (lists of requiredTrue/requiredFalse flags).
+- Every state flag mentioned anywhere must exist in \`initialState\`.
 
-*** RESPONSE FORMAT ***
-Return JSON exactly matching the structure below:
+--- Design Requirements ---
+1. **Puzzle Chain:** Create a coherent dependency chain with at least three sequential steps (e.g., find item -> unlock device -> reveal final code).
+2. **Object Placement:** Assign \`area\` values thoughtfully (x/y/width/height in percentages).
+   - Floor-level props generally have y > 60; wall/ceiling props have y < 50.
+   - Keep all values between 0 and 100 and avoid overlapping hitboxes.
+3. **Clickable Density:** Provide **at least three distinct interactive objects** placed in different parts of the scene. Each object must contribute to the puzzle or lore (no filler).
+4. **Narrative & Mood:** Write a vivid \`visualDescription\` (lighting, atmosphere, key props) that can drive background art generation.
+5. **State Management:** Use descriptive boolean keys (e.g., \`has_keycard\`, \`panel_unlocked\`). Every key referenced by conditions or effects must appear in \`initialState\`.
+6. **Dynamic Copy:** Whenever an option changes the state, include follow-up text variants so the player sees the outcome (e.g., once a drawer is open, describe it differently).
+7. **End States:** There must be at least one valid escape path using \`action: "finish"\`. If you introduce failure states, gate them with narrative context.
+8. **Media Hooks:** Include \`name\` values for each object (used later for image prompts). Leave \`backgroundImage\` as an empty string "".
 
+--- Output Contract ---
+Return JSON with this exact shape:
 {
-  "visualDescription": string; // used for image generation
-  "level": Level;              // must satisfy the Level schema
+  "visualDescription": string,  // used for image generation
+  "level": Level                // must match the schema below
 }
 
 type GameState = Record<string, boolean>;
