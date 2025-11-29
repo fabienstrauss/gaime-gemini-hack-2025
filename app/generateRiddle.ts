@@ -206,6 +206,13 @@ export async function generateVideoTransition(
             throw new Error("Both rooms must have background images");
         }
 
+        console.log(`🎬 Starting video transition generation...`);
+        console.log(`   Prompt: ${transitionPrompt.substring(0, 150)}${transitionPrompt.length > 150 ? '...' : ''}`);
+        console.log(`   First frame: ${firstFrameUrl.substring(0, 100)}...`);
+        console.log(`   Last frame: ${lastFrameUrl.substring(0, 100)}...`);
+
+        const startTime = Date.now();
+
         // Generate video using Veo
         const videoBuffer = await generateVideoWithVeo({
             prompt: transitionPrompt,
@@ -244,9 +251,13 @@ export async function generateVideoTransition(
             throw new Error("Failed to retrieve uploaded video URL");
         }
 
+        const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+        console.log(`✅ Video transition generation completed in ${duration}s`);
+        console.log(`   Video URL: ${videoUrl}`);
+
         return videoUrl;
     } catch (error) {
-        console.error("Error generating transition video:", error);
+        console.error("❌ Error generating transition video:", error);
         return "";
     }
 }

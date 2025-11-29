@@ -123,7 +123,7 @@ export async function generateAndSaveImage(
   prompt: string,
   filename: string,
   aspectRatio: "1:1" | "16:9" | "9:16" | "4:3" | "3:4" | "5:4" = "16:9",
-  imageSize: "1K" | "2K" | "4K" = "2K"
+  imageSize: "1K" | "2K" | "4K" = "1K"
 ): Promise<string> {
   console.log(`🎨 Generating image: ${filename}`);
   console.log(`   Prompt: ${prompt.substring(0, 100)}...`);
