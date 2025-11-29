@@ -1,7 +1,7 @@
 /**
  * Gemini API integration using @google/genai
  */
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, type GenerateContentConfig } from "@google/genai";
 
 let genAI: GoogleGenAI | null = null;
 
@@ -31,7 +31,8 @@ export function getClient(): GoogleGenAI {
  */
 export async function sendPrompt(
   prompt: string,
-  modelName: string = DEFAULT_GEMINI_MODEL
+  modelName: string = DEFAULT_GEMINI_MODEL,
+  config?: GenerateContentConfig
 ): Promise<string> {
   const client = getClient();
   const response = await client.models.generateContent({
@@ -42,6 +43,7 @@ export async function sendPrompt(
         parts: [{ text: prompt }],
       },
     ],
+    ...(config ? { config } : {}),
   });
   return response.text || "";
 }

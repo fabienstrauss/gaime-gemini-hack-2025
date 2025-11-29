@@ -1,4 +1,11 @@
-import type { Condition, Effect, GameState } from './schema';
+import type {
+    Condition,
+    Effect,
+    GameState,
+    InteractiveObject,
+    TextVariant,
+    Option,
+} from './schema';
 
 export function checkCondition(condition: Condition | undefined, state: GameState): boolean {
     if (!condition) return true;
@@ -36,4 +43,31 @@ export function applyEffect(effect: Effect | undefined, state: GameState): GameS
     }
 
     return newState;
+}
+
+export function isObjectVisible(object: InteractiveObject, state: GameState): boolean {
+    return checkCondition(object.visibleCondition, state);
+}
+
+export function getActiveTextVariant(object: InteractiveObject, state: GameState): TextVariant | undefined {
+    return object.text.find((variant) => checkCondition(variant.condition, state)) ?? object.text[0];
+}
+
+export function getVisibleOptions(object: InteractiveObject, state: GameState): Option[] {
+    return object.options.filter((option) => checkCondition(option.condition, state));
+}
+
+export interface ResolvedObjectView {
+    object: InteractiveObject;
+    text: TextVariant | undefined;
+    options: Option[];
+    isVisible: boolean;
+}
+
+export function resolveObjectView(object: InteractiveObject, state: GameState): ResolvedObjectView {
+    const isVisible = isObjectVisible(object, state);
+    const text = getActiveTextVariant(object, state);
+    const options = getVisibleOptions(object, state);
+
+    return { object, text, options, isVisible };
 }
