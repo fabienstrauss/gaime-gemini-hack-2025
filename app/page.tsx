@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useRouter } from "next/navigation";
@@ -8,6 +8,7 @@ import type { ArtStyle, Story } from "./_lib/types";
 import { Sparkles, Pencil, Image as ImageIcon, Clock } from "lucide-react";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { LucideIcon } from "lucide-react";
+import { generateRiddleAction } from "./actions";
 
 const artStyleIcons = {
     comic: Sparkles,
@@ -25,24 +26,7 @@ export default function HomePage() {
     const router = useRouter();
     const [prompt, setPrompt] = useState("");
     const [artStyle, setArtStyle] = useState<ArtStyle | null>(null);
-    const [isGenerating, setIsGenerating] = useState(false);
-    const [pendingStory, setPendingStory] = useState<{ prompt: string; artStyle: ArtStyle } | null>(null);
     const stories = useQuery(api.riddles.listStories) ?? [];
-
-    // Watch for the newly created story and navigate to it
-    useEffect(() => {
-        if (!pendingStory || !isGenerating) return;
-
-        // Find the story that matches our pending creation
-        const newStory = stories.find(
-            (s) => s.prompt === pendingStory.prompt && s.artStyle === pendingStory.artStyle
-        );
-
-        if (newStory) {
-            // Story found, now get the first room ID
-            setPendingStory(null);
-        }
-    }, [stories, pendingStory, isGenerating]);
 
     const handleGenerate = async () => {
         if (!prompt.trim() || !artStyle) {
@@ -50,52 +34,12 @@ export default function HomePage() {
             return;
         }
 
-        setIsGenerating(true);
-        setPendingStory({ prompt: prompt.trim(), artStyle });
-
         try {
-            const response = await fetch("/api/generate", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ prompt: prompt.trim(), artStyle }),
-            });
-
-            if (!response.ok) {
-                throw new Error("Failed to trigger generation");
-            }
+            await generateRiddleAction(prompt.trim(), artStyle);
         } catch (error) {
             console.error("Failed to generate riddle:", error);
             alert("Failed to generate riddle. Please try again.");
-            setIsGenerating(false);
-            setPendingStory(null);
         }
-    };
-
-    // Watch for the first room ID of the pending story
-    const newStory = pendingStory
-        ? stories.find((s) => s.prompt === pendingStory.prompt && s.artStyle === pendingStory.artStyle)
-        : null;
-    const firstRoomId = useQuery(
-        api.riddles.getFirstRoomId,
-        newStory ? { storyId: newStory._id } : "skip"
-    );
-
-    // Navigate when the first room ID is available
-    useEffect(() => {
-        if (firstRoomId && isGenerating && newStory) {
-            setIsGenerating(false);
-            setPendingStory(null);
-            router.push(`/room/${firstRoomId}`);
-        }
-    }, [firstRoomId, isGenerating, newStory, router]);
-
-    const formatDate = (timestamp: number) => {
-        const date = new Date(timestamp);
-        return date.toLocaleDateString("en-US", {
-            month: "short",
-            day: "numeric",
-            year: "numeric",
-        });
     };
 
     return (
@@ -126,7 +70,6 @@ export default function HomePage() {
                             placeholder="E.g., Escape from a haunted mansion, Find the treasure in an ancient temple..."
                             className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white placeholder-purple-300/50 resize-none"
                             rows={4}
-                            disabled={isGenerating}
                         />
                     </div>
 
@@ -143,11 +86,10 @@ export default function HomePage() {
                                     <button
                                         key={style}
                                         onClick={() => setArtStyle(style)}
-                                        disabled={isGenerating}
                                         className={`p-4 rounded-lg border-2 transition-all ${isSelected
                                                 ? "border-purple-400 bg-purple-500/30"
                                                 : "border-white/20 bg-white/5 hover:bg-white/10"
-                                            } ${isGenerating ? "opacity-50 cursor-not-allowed" : ""}`}
+                                            }`}
                                     >
                                         <Icon className="w-8 h-8 mx-auto mb-2" />
                                         <div className="font-medium">{artStyleLabels[style]}</div>
@@ -160,20 +102,9 @@ export default function HomePage() {
                     {/* Generate Button */}
                     <button
                         onClick={handleGenerate}
-                        disabled={isGenerating || !prompt.trim() || !artStyle}
-                        className="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg font-bold text-lg hover:from-purple-700 hover:to-pink-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl"
+                        className="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg font-bold text-lg hover:from-purple-700 hover:to-pink-700 transition-all shadow-lg hover:shadow-xl"
                     >
-                        {isGenerating ? (
-                            <span className="flex items-center justify-center">
-                                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                                Generating Your Riddle...
-                            </span>
-                        ) : (
-                            "Generate Riddle"
-                        )}
+                        Generate Riddle
                     </button>
                 </div>
 
