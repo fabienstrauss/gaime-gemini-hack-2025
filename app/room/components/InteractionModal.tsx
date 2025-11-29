@@ -1,7 +1,7 @@
 import React from 'react';
 import { X } from 'lucide-react';
 import type { InteractiveObject, Option, GameState } from '../engine';
-import { checkCondition } from '../engine';
+import { getActiveTextVariant, getVisibleOptions } from '../engine';
 
 interface InteractionModalProps {
     object: InteractiveObject;
@@ -16,12 +16,10 @@ export const InteractionModal: React.FC<InteractionModalProps> = ({
     onClose,
     onOptionSelect,
 }) => {
-    // Find the first text variant that matches the condition
-    const textVariant = object.text.find((t) => checkCondition(t.condition, gameState));
+    const textVariant = getActiveTextVariant(object, gameState);
     const content = textVariant ? textVariant.content : "You see nothing of interest.";
 
-    // Filter options based on condition
-    const visibleOptions = object.options.filter((opt) => checkCondition(opt.condition, gameState));
+    const visibleOptions = getVisibleOptions(object, gameState);
 
     return (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-8">

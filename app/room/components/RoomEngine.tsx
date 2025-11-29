@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { checkCondition, applyEffect } from '../engine';
+import { checkCondition, applyEffect, isObjectVisible } from '../engine';
 import type { Room, InteractiveObject, GameState, Option } from '../engine';
 import { InteractionModal } from './InteractionModal';
 import clsx from 'clsx';
@@ -52,7 +52,7 @@ export const RoomEngine: React.FC<RoomEngineProps> = ({
 
             // If the option has effects, the modal content might change (e.g. "Take Key" -> Key gone).
             // If the object becomes invisible due to the effect, we MUST close the modal.
-            if (activeObject && activeObject.visibleCondition && !checkCondition(activeObject.visibleCondition, newState)) {
+            if (activeObject && !isObjectVisible(activeObject, newState)) {
                 setActiveObject(null);
             }
         }
@@ -69,7 +69,7 @@ export const RoomEngine: React.FC<RoomEngineProps> = ({
 
             {/* Interactive Zones */}
             {room.objects.map((obj) => {
-                const isVisible = checkCondition(obj.visibleCondition, gameState);
+                const isVisible = isObjectVisible(obj, gameState);
                 if (!isVisible) return null;
 
                 return (

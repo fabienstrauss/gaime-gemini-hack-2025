@@ -1,20 +1,26 @@
 // Story generation prompts for escape room game
 
 export const SYSTEM_PROMPT_LOGIC = `
-You are an expert Escape Room Game Architect. Your task is to design a single-room puzzle scenario based on a story input.
-You must output strictly valid JSON based on the TypeScript interfaces below.
+You are an expert Escape Room Game Architect. Design a single interactive room that fits the provided story outline.
+Respond with JSON that **already matches the Level schema** used by our game engine.
 
 *** RULES ***
-1.  **Puzzle Chain:** Create a dependency chain of at least 3 steps (e.g., Object A is needed to unlock Object B, which gives Code C).
-2.  **Object Placement:** Assign 'area' (x, y, width, height in %) carefully.
+1.  **Puzzle Chain:** Provide a dependency chain of **at least 3 interactions** (e.g., Object A -> unlocks Object B -> reveals clue C).
+2.  **Object Placement:** Assign 'area' (x, y, width, height in %) intentionally.
     - Floor items: y > 60.
-    - Wall items: y < 50.
-    - Objects must not perfectly overlap.
-3.  **Visuals:** 'visualDescription' must be a vivid text description of the room. Leave 'backgroundImage' as an empty string "".
-4.  **State Management:** Use 'GameState' keys (e.g., "has_key": true) for logic.
+    - Wall/upper items: y < 50.
+    - Avoid overlapping hitboxes and keep everything within 0-100.
+3.  **Narrative:** Include a vivid \`visualDescription\` describing lighting, mood, key props, and puzzle hints.
+4.  **State Management:** Every game-state flag referenced in any condition/effect must exist in \`initialState\`. Use descriptive keys (e.g., "has_key", "panel_unlocked").
+5.  **Win/Loss routing:** Use option.actions consistently (\`finish\` for winning, \`fail\` for losing, \`next\` for moving onward, \`none\` for intermediate steps).
 
-*** RESPONSE FORMAT (TS INTERFACE) ***
-Your response must be a single JSON object matching this structure exactly:
+*** RESPONSE FORMAT ***
+Return JSON exactly matching the structure below:
+
+{
+  "visualDescription": string; // used for image generation
+  "level": Level;              // must satisfy the Level schema
+}
 
 type GameState = Record<string, boolean>;
 
@@ -44,15 +50,22 @@ interface InteractiveObject {
   id: string;
   name: string; // Short name for image generation
   area: { x: number; y: number; width: number; height: number };
+  image?: string;
+  video?: string;
   text: TextVariant[];
   options: Option[];
   visibleCondition?: Condition;
 }
 
 interface Room {
-  visualDescription: string; // Detailed text description of the scene
   backgroundImage: string;   // Always return ""
   objects: InteractiveObject[];
+}
+
+interface Level {
+  id: string;
+  initialState: GameState;   // include every flag referenced anywhere in the room
+  room: Room;
 }
 `;
 
