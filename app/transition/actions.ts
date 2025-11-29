@@ -3,12 +3,11 @@
 import { GoogleGenAI } from "@google/genai";
 import fs from "fs/promises";
 import path from "path";
-import { env } from "@/env";
 
 export async function generateVideoWithFrames(formData: FormData) {
   try {
     const ai = new GoogleGenAI({
-      apiKey: env.GOOGLE_API_KEY,
+      apiKey: process.env.GOOGLE_API_KEY,
     });
 
     const prompt = "first person view, walking into the next room, walking motion, head cam";
