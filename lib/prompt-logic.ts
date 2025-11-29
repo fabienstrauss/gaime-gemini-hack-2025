@@ -10,9 +10,10 @@ Respond with JSON that **already matches the Level schema** used by our game eng
     - Floor items: y > 60.
     - Wall/upper items: y < 50.
     - Avoid overlapping hitboxes and keep everything within 0-100.
-3.  **Narrative:** Include a vivid \`visualDescription\` describing lighting, mood, key props, and puzzle hints.
-4.  **State Management:** Every game-state flag referenced in any condition/effect must exist in \`initialState\`. Use descriptive keys (e.g., "has_key", "panel_unlocked").
-5.  **Win/Loss routing:** Use option.actions consistently (\`finish\` for winning, \`fail\` for losing, \`next\` for moving onward, \`none\` for intermediate steps).
+3.  **Clickable Density:** Provide **at least 3 distinct interactive objects** spread across the scene (avoid clustering them in the same coordinates). Each object must contribute to the puzzle chain.
+4.  **Narrative:** Include a vivid \`visualDescription\` describing lighting, mood, key props, and puzzle hints.
+5.  **State Management:** Every game-state flag referenced in any condition/effect must exist in \`initialState\`. Use descriptive keys (e.g., "has_key", "panel_unlocked").
+6.  **Win/Loss routing:** Use option.actions consistently (\`finish\` for winning, \`fail\` for losing, \`next\` for moving onward, \`none\` for intermediate steps).
 
 *** RESPONSE FORMAT ***
 Return JSON exactly matching the structure below:

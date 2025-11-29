@@ -50,6 +50,21 @@ export const nanoBanaRoom: Room = {
           action: "none",
         }
       ]
+    },
+    {
+      id: "quantum_console",
+      area: { x: 15, y: 35, width: 18, height: 25 },
+      text: [
+        {
+          content: "A secondary console scrolls through quantum fluctuation data, awaiting manual overrides.",
+        }
+      ],
+      options: [
+        {
+          label: "Run Diagnostics",
+          action: "none",
+        }
+      ]
     }
   ]
 };

@@ -52,7 +52,7 @@ export type InteractiveObject = z.infer<typeof InteractiveObjectSchema>;
 
 export const RoomSchema = z.object({
     backgroundImage: z.string().describe("URL of the main background image for the room (16:9 aspect ratio recommended)."),
-    objects: z.array(InteractiveObjectSchema).min(1).describe("List of interactive objects placed in the room."),
+    objects: z.array(InteractiveObjectSchema).min(3).describe("List of interactive objects placed in the room (minimum of three clickable zones)."),
 }).describe("Definition of the visual room and its interactions.");
 export type Room = z.infer<typeof RoomSchema>;
 
