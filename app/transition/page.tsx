@@ -1,53 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import { generateVideoWithFrames } from "./actions";
-import { Upload } from "lucide-react";
+import { generateRoomTransitionVideo } from "./actions";
+import type { Id } from "@/convex/_generated/dataModel";
 
 export default function TransitionPage() {
-    const [prompt, setPrompt] = useState("");
-    const [firstFrame, setFirstFrame] = useState<File | null>(null);
-    const [lastFrame, setLastFrame] = useState<File | null>(null);
-    const [firstFramePreview, setFirstFramePreview] = useState<string | null>(null);
-    const [lastFramePreview, setLastFramePreview] = useState<string | null>(null);
+    const [firstRoomId, setFirstRoomId] = useState("");
+    const [lastRoomId, setLastRoomId] = useState("");
     const [loading, setLoading] = useState(false);
     const [videoUrl, setVideoUrl] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
 
-    const handleFirstFrameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            setFirstFrame(file);
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setFirstFramePreview(reader.result as string);
-            };
-            reader.readAsDataURL(file);
-        }
-    };
-
-    const handleLastFrameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            setLastFrame(file);
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setLastFramePreview(reader.result as string);
-            };
-            reader.readAsDataURL(file);
-        }
-    };
-
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (!prompt.trim()) {
-            setError("Please enter a prompt");
-            return;
-        }
-
-        if (!firstFrame || !lastFrame) {
-            setError("Please upload both start and end frame images");
+        if (!firstRoomId.trim() || !lastRoomId.trim()) {
+            setError("Please enter both room IDs");
             return;
         }
 
@@ -56,12 +24,10 @@ export default function TransitionPage() {
         setVideoUrl(null);
 
         try {
-            const formData = new FormData();
-            formData.append("prompt", prompt);
-            formData.append("firstFrame", firstFrame);
-            formData.append("lastFrame", lastFrame);
-
-            const result = await generateVideoWithFrames(formData);
+            const result = await generateRoomTransitionVideo({
+                firstRoomId: firstRoomId as Id<"rooms">,
+                lastRoomId: lastRoomId as Id<"rooms">,
+            });
 
             if (result.success && result.videoUrl) {
                 setVideoUrl(result.videoUrl);
@@ -80,10 +46,10 @@ export default function TransitionPage() {
             <div className="max-w-4xl w-full space-y-8">
                 <div className="text-center">
                     <h1 className="text-4xl font-bold text-white mb-2">
-                        Video Generation with Frame Interpolation
+                        Room Transition Video Generator
                     </h1>
                     <p className="text-gray-400">
-                        Generate videos from start and end frames using Google Veo 3.1
+                        Generate transition videos between rooms using Google Veo 3.1
                     </p>
                 </div>
 
@@ -91,70 +57,32 @@ export default function TransitionPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-300 mb-2">
-                                Start Frame
+                                First Room ID
                             </label>
-                            <div className="relative">
-                                <input
-                                    type="file"
-                                    accept="image/png,image/jpeg"
-                                    onChange={handleFirstFrameChange}
-                                    disabled={loading}
-                                    className="hidden"
-                                    id="firstFrame"
-                                />
-                                <label
-                                    htmlFor="firstFrame"
-                                    className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-gray-700 rounded-lg cursor-pointer bg-gray-900 hover:bg-gray-800 transition-colors"
-                                >
-                                    {firstFramePreview ? (
-                                        <img
-                                            src={firstFramePreview}
-                                            alt="First frame preview"
-                                            className="w-full h-full object-contain rounded-lg"
-                                        />
-                                    ) : (
-                                        <div className="flex flex-col items-center">
-                                            <Upload className="w-12 h-12 text-gray-500 mb-2" />
-                                            <p className="text-sm text-gray-400">Upload start frame</p>
-                                            <p className="text-xs text-gray-500 mt-1">PNG or JPEG</p>
-                                        </div>
-                                    )}
-                                </label>
-                            </div>
+                            <input
+                                type="text"
+                                value={firstRoomId}
+                                onChange={(e) => setFirstRoomId(e.target.value)}
+                                disabled={loading}
+                                placeholder="jx7abc123..."
+                                className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                            />
+                            <p className="mt-1 text-xs text-gray-500">Enter the Convex ID of the first room</p>
                         </div>
 
                         <div>
                             <label className="block text-sm font-medium text-gray-300 mb-2">
-                                End Frame
+                                Last Room ID
                             </label>
-                            <div className="relative">
-                                <input
-                                    type="file"
-                                    accept="image/png,image/jpeg"
-                                    onChange={handleLastFrameChange}
-                                    disabled={loading}
-                                    className="hidden"
-                                    id="lastFrame"
-                                />
-                                <label
-                                    htmlFor="lastFrame"
-                                    className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-gray-700 rounded-lg cursor-pointer bg-gray-900 hover:bg-gray-800 transition-colors"
-                                >
-                                    {lastFramePreview ? (
-                                        <img
-                                            src={lastFramePreview}
-                                            alt="Last frame preview"
-                                            className="w-full h-full object-contain rounded-lg"
-                                        />
-                                    ) : (
-                                        <div className="flex flex-col items-center">
-                                            <Upload className="w-12 h-12 text-gray-500 mb-2" />
-                                            <p className="text-sm text-gray-400">Upload end frame</p>
-                                            <p className="text-xs text-gray-500 mt-1">PNG or JPEG</p>
-                                        </div>
-                                    )}
-                                </label>
-                            </div>
+                            <input
+                                type="text"
+                                value={lastRoomId}
+                                onChange={(e) => setLastRoomId(e.target.value)}
+                                disabled={loading}
+                                placeholder="jx7def456..."
+                                className="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                            />
+                            <p className="mt-1 text-xs text-gray-500">Enter the Convex ID of the last room</p>
                         </div>
                     </div>
                     
@@ -187,6 +115,25 @@ export default function TransitionPage() {
                         <h2 className="text-2xl font-semibold text-white">
                             Generated Video
                         </h2>
+
+                        <div className="p-4 bg-gray-900 border border-gray-700 rounded-lg">
+                            <p className="text-sm text-gray-400 mb-2">Convex Storage URL:</p>
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="text"
+                                    value={videoUrl}
+                                    readOnly
+                                    className="flex-1 px-3 py-2 bg-gray-800 border border-gray-600 rounded text-white text-sm font-mono"
+                                />
+                                <button
+                                    onClick={() => navigator.clipboard.writeText(videoUrl)}
+                                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded transition-colors"
+                                >
+                                    Copy
+                                </button>
+                            </div>
+                        </div>
+
                         <div className="rounded-lg overflow-hidden bg-gray-900">
                             <video
                                 controls
@@ -196,6 +143,7 @@ export default function TransitionPage() {
                                 Your browser does not support the video tag.
                             </video>
                         </div>
+
                         <a
                             href={videoUrl}
                             download

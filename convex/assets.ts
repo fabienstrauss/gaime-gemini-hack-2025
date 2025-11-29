@@ -27,7 +27,6 @@ export const saveAsset = mutation({
                 storageId: args.storageId,
                 type: args.type,
                 mimeType: args.mimeType,
-                uploadedAt: Date.now(),
             });
             return existing._id;
         } else {
@@ -37,7 +36,6 @@ export const saveAsset = mutation({
                 storageId: args.storageId,
                 type: args.type,
                 mimeType: args.mimeType,
-                uploadedAt: Date.now(),
             });
         }
     },

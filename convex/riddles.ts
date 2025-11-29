@@ -1,6 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
+import { generateRoomTransitionVideo } from "@/app/transition/actions";
 
 // Mock room templates - using simplified versions for generation
 const mockRoomTemplates = {
@@ -69,12 +70,6 @@ const mockRoomTemplates = {
     }
 };
 
-// Mock transition videos (placeholder URLs)
-const mockTransitionVideos = [
-    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
-    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
-    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
-];
 
 export const generateRiddle = mutation({
     args: {
@@ -82,8 +77,6 @@ export const generateRiddle = mutation({
         artStyle: v.union(v.literal("comic"), v.literal("drawing"), v.literal("photorealistic")),
     },
     handler: async (ctx, args) => {
-        const now = Date.now();
-
         // Generate a goal based on the prompt (mock logic)
         const goal = `Complete the challenge: ${args.prompt}`;
 
@@ -92,32 +85,53 @@ export const generateRiddle = mutation({
             prompt: args.prompt,
             artStyle: args.artStyle,
             goal,
+            room_stories: [],
             totalRooms: 3,
-            createdAt: now,
         });
 
         // Generate 3 rooms
         const roomIds: Id<"rooms">[] = [];
 
+        // First, create all rooms without transition videos
         for (let roomNumber = 1; roomNumber <= 3; roomNumber++) {
             // Alternate between templates
             const template = roomNumber === 2 ? mockRoomTemplates.nanoBana : mockRoomTemplates.escapeRoom;
-
-            // Add transition video URL for rooms 1 and 2 (not room 3)
-            const transitionVideoUrl = roomNumber < 3
-                ? mockTransitionVideos[(roomNumber - 1) % mockTransitionVideos.length]
-                : undefined;
 
             const roomId = await ctx.db.insert("rooms", {
                 storyId,
                 roomNumber,
                 roomData: template,
-                transitionVideoUrl,
-                createdAt: now,
+                ready: false,
             });
 
             roomIds.push(roomId);
         }
+
+        // Then, generate transition videos for consecutive room pairs
+        for (let i = 0; i < roomIds.length - 1; i++) {
+            const currentRoomId = roomIds[i];
+            const nextRoomId = roomIds[i + 1];
+
+            const transitionResult = await generateRoomTransitionVideo({
+                firstRoomId: currentRoomId,
+                lastRoomId: nextRoomId,
+            });
+
+            if (!transitionResult.success) {
+                throw new Error(`Failed to generate transition video between room ${i + 1} and ${i + 2}: ${transitionResult.error}`);
+            }
+
+            // Update the current room with the transition video URL
+            await ctx.db.patch(currentRoomId, {
+                transitionVideoUrl: transitionResult.videoUrl,
+                ready: true,
+            });
+        }
+
+        // Mark the last room as ready (no transition video needed)
+        await ctx.db.patch(roomIds[roomIds.length - 1], {
+            ready: true,
+        });
 
         return {
             storyId,
@@ -207,8 +221,8 @@ export const createStory = mutation({
             prompt: args.prompt,
             artStyle: args.artStyle,
             goal: args.goal,
+            room_stories: [],
             totalRooms: args.totalRooms,
-            createdAt: Date.now(),
         });
 
         return storyId;
@@ -221,6 +235,7 @@ export const createRoom = mutation({
         roomNumber: v.number(),
         roomData: v.any(),
         transitionVideoUrl: v.optional(v.string()),
+        ready: v.optional(v.boolean()),
     },
     handler: async (ctx, args) => {
         const roomId = await ctx.db.insert("rooms", {
@@ -228,7 +243,7 @@ export const createRoom = mutation({
             roomNumber: args.roomNumber,
             roomData: args.roomData,
             transitionVideoUrl: args.transitionVideoUrl,
-            createdAt: Date.now(),
+            ready: args.ready ?? false,
         });
 
         return roomId;
