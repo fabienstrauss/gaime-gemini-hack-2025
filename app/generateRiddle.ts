@@ -141,7 +141,8 @@ export async function generateRoom(
     roomNumber: number,
     storyOutline: { goal: string; theme: string; description: string },
     artStyle: ArtStyle,
-    previousRoomData?: Level | null
+    previousRoomData?: Level | null,
+    referenceImageBase64?: string
 ): Promise<Level> {
     console.log(`🏠 Generating room ${roomNumber}...`);
 
@@ -156,6 +157,7 @@ export async function generateRoom(
         prompt: imagePrompt,
         aspectRatio: "16:9",
         imageSize: "2K",
+        referenceImageBase64: referenceImageBase64,
     });
 
     const filename = `room_${roomNumber}_${Date.now()}`;
@@ -262,7 +264,14 @@ export async function generateVideoTransition(
     }
 }
 
-export async function generateRiddle(prompt: string, artStyle: ArtStyle): Promise<void> {
+export async function generateRiddle(prompt: string, artStyle: ArtStyle, referenceImage?: File | null): Promise<void> {
+    // Convert reference image to base64 if provided
+    let referenceImageBase64: string | undefined;
+    if (referenceImage) {
+        const buffer = await referenceImage.arrayBuffer();
+        referenceImageBase64 = Buffer.from(buffer).toString("base64");
+    }
+
     const { storyId, roomIds } = await createStoryEmptyMutation({ prompt, artStyle });
     const storyOutline = await generateStoryOutline(prompt, artStyle);
     await createStoryBasicMutation({ storyId, goal: storyOutline.goal, theme: storyOutline.theme, description: storyOutline.description });
@@ -271,25 +280,33 @@ export async function generateRiddle(prompt: string, artStyle: ArtStyle): Promis
 
     for (let i = 0; i < roomIds.length; i++) {
         const roomNumber = i + 1;
-        const roomData = await generateRoom(roomNumber, storyOutline, artStyle, previousRoomData);
+        // Only pass reference image for the first room
+        const roomData = await generateRoom(
+            roomNumber,
+            storyOutline,
+            artStyle,
+            previousRoomData,
+            roomNumber === 1 ? referenceImageBase64 : undefined
+        );
         await updateRoomMutation({ roomId: roomIds[i], roomData });
         generatedRooms.push(roomData);
         previousRoomData = roomData;
     }
 
-    for (let i = 0; i < roomIds.length - 1; i++) {
-        const transitionPrompt = `Create a ${artStyle} cinematic video transitioning from room ${i + 1} to room ${
-            i + 2
-        } for the story goal "${storyOutline.goal}". Highlight continuity and mood evolution.`;
+    // Video generation disabled
+    // for (let i = 0; i < roomIds.length - 1; i++) {
+    //     const transitionPrompt = `Create a ${artStyle} cinematic video transitioning from room ${i + 1} to room ${
+    //         i + 2
+    //     } for the story goal "${storyOutline.goal}". Highlight continuity and mood evolution.`;
 
-        const transitionVideoUrl = await generateVideoTransition(
-            transitionPrompt,
-            generatedRooms[i],
-            generatedRooms[i + 1]
-        );
+    //     const transitionVideoUrl = await generateVideoTransition(
+    //         transitionPrompt,
+    //         generatedRooms[i],
+    //         generatedRooms[i + 1]
+    //     );
 
-        if (transitionVideoUrl) {
-            await addTransitionVideoMutation({ roomId: roomIds[i], transitionVideoUrl });
-        }
-    }
+    //     if (transitionVideoUrl) {
+    //         await addTransitionVideoMutation({ roomId: roomIds[i], transitionVideoUrl });
+    //     }
+    // }
 }

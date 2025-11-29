@@ -10,6 +10,7 @@ interface ImageGenerationOptions {
   aspectRatio?: "1:1" | "16:9" | "9:16" | "4:3" | "3:4" | "5:4";
   safetySetting?: "block_most" | "block_some" | "block_few" | "block_none";
   imageSize?: "1K" | "2K" | "4K";
+  referenceImageBase64?: string;
 }
 
 /**
@@ -27,6 +28,7 @@ export async function generateImageWithImagen(
     negativePrompt,
     aspectRatio = "16:9",
     imageSize = "2K",
+    referenceImageBase64,
   } = options;
 
   // Build the prompt with negative prompt if provided
@@ -38,13 +40,33 @@ export async function generateImageWithImagen(
   console.log(`   Model: gemini-3-pro-image-preview`);
   console.log(`   Aspect Ratio: ${aspectRatio}`);
   console.log(`   Resolution: ${imageSize}`);
+  console.log(`   Reference Image: ${referenceImageBase64 ? 'Yes' : 'No'}`);
   console.log(`   Prompt: ${prompt.substring(0, 150)}${prompt.length > 150 ? '...' : ''}`);
 
   const startTime = Date.now();
 
+  // Build content parts array
+  const contentParts: any[] = [];
+
+  // Add reference image if provided
+  if (referenceImageBase64) {
+    contentParts.push({
+      inlineData: {
+        mimeType: "image/png",
+        data: referenceImageBase64,
+      },
+    });
+  }
+
+  // Add text prompt
+  contentParts.push({ text: fullPrompt });
+
   const response = await client.models.generateContent({
     model: "gemini-3-pro-image-preview",
-    contents: fullPrompt,
+    contents: [{
+      role: "user",
+      parts: contentParts,
+    }],
     config: {
       responseModalities: ["TEXT", "IMAGE"],
       imageConfig: {

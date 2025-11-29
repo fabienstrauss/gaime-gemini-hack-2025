@@ -5,7 +5,7 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useRouter } from "next/navigation";
 import type { ArtStyle, Story } from "./_lib/types";
-import { Sparkles, Pencil, Image as ImageIcon, Clock, Wand2, PlayCircle, Search } from "lucide-react";
+import { Sparkles, Pencil, Image as ImageIcon, Clock, Wand2, PlayCircle, Search, Upload, X } from "lucide-react";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { LucideIcon } from "lucide-react";
 import { generateRiddle } from "@/app/generateRiddle";
@@ -34,7 +34,26 @@ export default function HomePage() {
     const [prompt, setPrompt] = useState("");
     const [artStyle, setArtStyle] = useState<ArtStyle | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
+    const [referenceImage, setReferenceImage] = useState<File | null>(null);
+    const [referenceImagePreview, setReferenceImagePreview] = useState<string | null>(null);
     const stories = useQuery(api.riddles.listStories) ?? [];
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setReferenceImage(file);
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setReferenceImagePreview(reader.result as string);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const handleRemoveImage = () => {
+        setReferenceImage(null);
+        setReferenceImagePreview(null);
+    };
 
     const handleGenerate = async () => {
         if (!prompt.trim() || !artStyle) {
@@ -44,10 +63,12 @@ export default function HomePage() {
 
         setIsGenerating(true);
         try {
-            await generateRiddle(prompt.trim(), artStyle);
+            await generateRiddle(prompt.trim(), artStyle, referenceImage);
             // Optionally clear form or show success message
             setPrompt("");
             setArtStyle(null);
+            setReferenceImage(null);
+            setReferenceImagePreview(null);
         } catch (error) {
             console.error("Failed to generate riddle:", error);
             alert("Failed to generate riddle. Please try again.");
@@ -126,6 +147,53 @@ export default function HomePage() {
                                             {prompt.length} chars
                                         </div>
                                     </div>
+                                </div>
+
+                                {/* Reference Image Upload */}
+                                <div className="mb-8">
+                                    <label className="block text-sm font-medium mb-3 text-gray-300 ml-1">
+                                        Reference Image (Optional)
+                                    </label>
+                                    {!referenceImagePreview ? (
+                                        <label className="relative group/upload cursor-pointer">
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={handleFileChange}
+                                                className="hidden"
+                                            />
+                                            <div className="w-full px-5 py-6 bg-black/20 border border-white/10 border-dashed rounded-2xl hover:bg-black/30 hover:border-purple-500/50 transition-all duration-300 flex flex-col items-center justify-center gap-3">
+                                                <div className="p-3 rounded-xl bg-purple-500/20 text-purple-300">
+                                                    <Upload className="w-6 h-6" />
+                                                </div>
+                                                <div className="text-center">
+                                                    <p className="text-sm text-gray-300 font-medium">
+                                                        Upload a reference image
+                                                    </p>
+                                                    <p className="text-xs text-gray-500 mt-1">
+                                                        Click to select an image (PNG, JPG, etc.)
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </label>
+                                    ) : (
+                                        <div className="relative group/preview">
+                                            <img
+                                                src={referenceImagePreview}
+                                                alt="Reference"
+                                                className="w-full h-48 object-cover rounded-2xl border border-white/10"
+                                            />
+                                            <button
+                                                onClick={handleRemoveImage}
+                                                className="absolute top-2 right-2 p-2 bg-red-500/80 hover:bg-red-500 rounded-full transition-colors backdrop-blur-sm"
+                                            >
+                                                <X className="w-4 h-4 text-white" />
+                                            </button>
+                                            <div className="absolute bottom-2 left-2 px-3 py-1.5 bg-black/60 backdrop-blur-sm rounded-full text-xs text-white font-medium">
+                                                Reference Image
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Art Style Selector */}
